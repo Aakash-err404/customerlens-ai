@@ -13,6 +13,8 @@ Run with::
 
 from __future__ import annotations
 
+import gc
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -62,6 +64,25 @@ CSS = """
 """
 
 
+def release_unused_memory() -> None:
+    """Return freed heap to the operating system.
+
+    Python gives memory back lazily and glibc keeps freed chunks in per-thread
+    arenas, so a process can sit at its peak RSS long after the temporary
+    DataFrames are gone. On Linux (including Streamlit Cloud) ``malloc_trim``
+    flushes those arenas; on Windows the heap manager already returns memory,
+    so only a garbage collection happens here.
+    """
+    gc.collect()
+    if sys.platform == "linux":
+        try:
+            import ctypes
+
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
+
+
 # ==========================================================================
 # Session state containers
 # ==========================================================================
@@ -70,9 +91,9 @@ class Analysis:
     """Everything derived from one uploaded file, computed once per file."""
 
     source_name: str
-    raw: pd.DataFrame
     read_meta: dict[str, Any]
-    frame: pd.DataFrame
+    rows_in_file: int
+    rows_analysed: int
     cleaning: dp.CleaningReport
     coerced: list[str]
     date_report: dict[str, dict[str, Any]]
@@ -150,10 +171,13 @@ def build_analysis(payload: bytes, source_name: str) -> Analysis:
     caching it cannot leak information between partitions.
     """
     raw, read_meta = dd.read_csv_bytes(payload)
+    rows_in_file = int(len(raw))
 
     frame, cleaning = dp.clean_dataframe(raw)
+    del raw
     frame, coerced, _ = dp.coerce_numeric_columns(frame)
     frame, date_report = dd.infer_datetime_columns(frame)
+    rows_analysed = int(len(frame))
 
     profile = dd.profile_dataset(frame)
     schema = dd.detect_transaction_columns(frame, profile)
@@ -169,6 +193,7 @@ def build_analysis(payload: bytes, source_name: str) -> Analysis:
         customers = frame.copy()
         specs = pd.DataFrame(columns=["Feature", "Group", "Description", "Built from"])
         notes = []
+    del frame
 
     customer_profile = dd.profile_dataset(customers)
     target_column, _ranked, _notes = dd.detect_target_column(customers, customer_profile)
@@ -217,11 +242,13 @@ def build_analysis(payload: bytes, source_name: str) -> Analysis:
         specs=aggregation.specs if aggregation is not None else None,
     )
 
+    release_unused_memory()
+
     return Analysis(
         source_name=source_name,
-        raw=raw,
         read_meta=read_meta,
-        frame=frame,
+        rows_in_file=rows_in_file,
+        rows_analysed=rows_analysed,
         cleaning=cleaning,
         coerced=list(coerced),
         date_report=date_report,
@@ -371,6 +398,8 @@ def run_modelling(
     )
     sweep = ev.threshold_sweep(model_a.oof_probabilities, split.y_train)
     suggested, _ = choose_threshold(model_a.oof_probabilities, split.y_train)
+
+    release_unused_memory()
 
     return Modelling(
         split=split,
@@ -971,7 +1000,7 @@ def unmodellable_view(analysis: Analysis) -> None:
     st.caption(analysis.target.description)
     metrics(
         [
-            ("Rows in file", f"{len(analysis.raw):,}"),
+            ("Rows in file", f"{analysis.rows_in_file:,}"),
             ("Customers", f"{len(analysis.customers):,}"),
             ("Grain", analysis.verdict.label),
             ("Features found", f"{len(analysis.selection.all_features)}"),
@@ -1162,8 +1191,8 @@ def summary_facts(analysis: Analysis, modelling: Modelling) -> sm.SummaryFacts:
     return sm.SummaryFacts(
         source_name=analysis.source_name,
         grain_label=analysis.verdict.label,
-        rows_in_file=len(analysis.raw),
-        rows_analysed=len(analysis.frame),
+        rows_in_file=analysis.rows_in_file,
+        rows_analysed=analysis.rows_analysed,
         customer_count=len(analysis.customers),
         columns_analysed=len(analysis.customers.columns),
         target_origin=analysis.target.origin,
@@ -1206,8 +1235,8 @@ def unmodellable_facts(analysis: Analysis) -> sm.SummaryFacts:
     return sm.SummaryFacts(
         source_name=analysis.source_name,
         grain_label=analysis.verdict.label,
-        rows_in_file=len(analysis.raw),
-        rows_analysed=len(analysis.frame),
+        rows_in_file=analysis.rows_in_file,
+        rows_analysed=analysis.rows_analysed,
         customer_count=len(analysis.customers),
         columns_analysed=len(analysis.customers.columns),
         target_origin=analysis.target.origin,

@@ -7,6 +7,7 @@ default values are ever invented for information the dataset does not contain.
 
 from __future__ import annotations
 
+import gc
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
@@ -130,6 +131,17 @@ def aggregate_transactions(
             "or an unparseable date. Check the column selections on the Feature Engineering page."
         )
 
+    # Drop every source column the aggregation does not need. The original file
+    # can carry wide object columns (descriptions, notes, addresses) that are
+    # never consulted here; keeping them alive multiplies the cost of every
+    # groupby and temporary copy below.
+    line_cols = [f"__date__{date_col}", cust_col]
+    for _c in (schema.quantity, schema.unit_value, schema.transaction_id, schema.product, schema.category):
+        if _c and _c in work.columns and _c not in line_cols:
+            line_cols.append(_c)
+    work = work.loc[:, line_cols].copy()
+    gc.collect()
+
     if profile is not None:
         valid_customers = profile.meta(cust_col).n_unique
     else:
@@ -245,6 +257,7 @@ def aggregate_transactions(
     features["active_months"] = grouped["__month"].nunique()
     specs.append(FeatureSpec("active_quarters", "behaviour", "Distinct calendar quarters in which the customer transacted.", [date_col]))
     specs.append(FeatureSpec("active_months", "behaviour", "Distinct calendar months in which the customer transacted.", [date_col]))
+    work = work.drop(columns=["__year", "__quarter", "__month"], errors="ignore")
 
     # -- monotonic aggregates ------------------------------------------
     if "recency_days" in features:
@@ -254,7 +267,7 @@ def aggregate_transactions(
                 "__cust_recency": work[cust_col].map(features["recency_days"]),
             }
         )
-        recent = work.loc[work["__recency"] <= 365.0]
+        recent = work.loc[work["__recency"] <= 365.0, [cust_col, date_series]]
         grouped_recent = recent.groupby(cust_col, observed=True)
         features["recency_weighted_frequency"] = (
             grouped_recent[date_series].size() / (features["recency_days"] / 365.0).replace(0, np.nan)
@@ -320,9 +333,10 @@ def aggregate_transactions(
 
     # -- quantity based -------------------------------------------------
     if qty_col:
-        positive = work["__qty"] > 0
-        pos = work.loc[positive]
-        neg = work.loc[~positive]
+        _qty = work["__qty"]
+        positive = _qty > 0
+        pos = work.loc[positive, [cust_col, "__qty"]]
+        neg = work.loc[~positive, [cust_col, "__qty"]]
         grouped_pos = pos.groupby(cust_col, observed=True)
         features["total_quantity"] = grouped_pos["__qty"].sum()
         features["avg_quantity_per_line"] = grouped_pos["__qty"].mean()
@@ -348,7 +362,10 @@ def aggregate_transactions(
         specs.append(FeatureSpec("max_line_value", "value", "Largest single-line value.", [qty_col, value_col] if qty_col and value_col else [value_col or qty_col or "-"]))
 
         if value_col:
-            pos_value = work.loc[(work.get("__qty", 1) > 0)] if qty_col else work
+            if qty_col:
+                pos_value = work.loc[work["__qty"] > 0, [cust_col, "__qty", "__price"]]
+            else:
+                pos_value = work
             pos_value = pos_value.loc[pos_value["__price"] > 0]
             if not pos_value.empty:
                 features["avg_unit_price"] = pos_value.groupby(cust_col, observed=True)["__price"].mean()

@@ -106,9 +106,10 @@ works without it — the example list is simply empty — and the repository is
 around 42 MB because of `Online_Retail.csv`.
 
 One caveat for a free Cloud instance: the 541,909-row example peaks at roughly
-1.05 GB of resident memory, which is at or slightly over the 1 GB free-tier
-allowance. The 1,000-row example is comfortably within it. A paid instance, or
-the smaller file, avoids the risk.
+0.75 GB of resident memory (measured end-to-end with `n_jobs=1`), which stays
+inside the 1 GB free-tier allowance with headroom. The 1,000-row example sits
+around 0.35 GB. Files much larger than this example may still exceed the free
+allowance; a paid instance, or a smaller/pruned file, avoids the risk.
 
 ## How it works
 
@@ -246,6 +247,8 @@ two are scheduled for the next release.
    the group profiles, so reported group averages cover per-row features only.
 
 The app is also memory-hungry on very large files; see the Cloud note above.
+v1.0.1 slashed peak memory for the 541,909-row example by roughly 30%, keeping it
+inside the free-tier limit.
 
 ## Project layout
 

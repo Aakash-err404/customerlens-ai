@@ -7,11 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet. Planned for the next iteration:
+Planned for the next iteration:
 
 - Fix the two known loader defects listed under v1.0.0 "Known limitations".
 - Replace the fixed risk bands with bands that reflect the score distribution of
   the file being analysed.
+
+## [1.0.1] - 2026-09-28
+
+### Changed
+
+- **Peak memory cut by ~30% for large files.** The transaction aggregator now
+  drops every source column it does not need before grouping, keeps only the
+  columns actually used by intermediate copies, and releases the original raw and
+  cleaned frames as soon as their row counts are known. On Linux the process also
+  returns freed heap to the OS after the heavy stages, so a session no longer
+  sits at peak RSS after the work is done.
+- Measured end-to-end on the 541,909-row example this lowers peak resident
+  memory from ~1.05 GB to ~0.75 GB (`n_jobs=1`), keeping it inside the 1 GB
+  Streamlit Community Cloud free allowance. The 1,000-row example sits near
+  0.35 GB.
+- `Analysis` no longer retains the raw and cleaned DataFrames; it keeps row
+  counts instead.
 
 ## [1.0.0] - 2026-09-28
 
@@ -91,5 +108,6 @@ clean.
    left out of the segment profiles, so the reported group averages cover only
    per-row features.
 
-[Unreleased]: https://github.com/Aakash-err404/customerlens-ai/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Aakash-err404/customerlens-ai/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/Aakash-err404/customerlens-ai/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Aakash-err404/customerlens-ai/releases/tag/v1.0.0
