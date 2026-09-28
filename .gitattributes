@@ -1,0 +1,16 @@
+# Normalise line endings in the repository; check them out per platform.
+* text=auto eol=lf
+
+*.py   text eol=lf diff=python
+*.md   text eol=lf
+*.toml text eol=lf
+*.txt  text eol=lf
+
+# Datasets are checked in as-is. Without -text, git would rewrite the line
+# endings of a 42 MB file on every platform, changing every byte of the blob.
+datasets/*.csv -text
+
+# Binary or generated artefacts
+*.png binary
+*.jpg binary
+*.pdf binary

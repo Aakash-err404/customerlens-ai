@@ -1,0 +1,26 @@
+# CUSTOMERLENS AI - runtime dependencies
+#
+# Direct dependencies only, pinned to lower bounds. The versions below are the
+# ones the app was developed and measured against; the code carries fallbacks for
+# older scikit-learn (the penalty/l1_ratio grid change in 1.8) and for pandas
+# before the 3.x dtype changes, so a lower install will still run, but these are
+# the versions the numbers in README.md were produced on.
+#
+# Tested on: Python 3.14.4 (requires Python 3.10 or newer)
+#
+# scipy is intentionally absent: nothing in this project imports it directly and
+# it is installed automatically as a dependency of scikit-learn.
+
+# --- application framework ---------------------------------------------------
+streamlit>=1.56.0
+
+# --- dataframes and numerics -------------------------------------------------
+pandas>=3.0.2
+numpy>=2.4.4
+
+# --- modelling ---------------------------------------------------------------
+# scikit-learn pulls in scipy and joblib, which are used transitively.
+scikit-learn>=1.8.0
+
+# --- charts ------------------------------------------------------------------
+plotly>=6.7.0
