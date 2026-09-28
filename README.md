@@ -40,8 +40,8 @@ it reports. No column names, target column or file format is hard-coded.
 Requires **Python 3.10 or newer**.
 
 ```bash
-git clone https://github.com/OWNER/REPO.git
-cd REPO
+git clone https://github.com/Aakash-err404/customerlens-ai.git
+cd customerlens-ai
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt

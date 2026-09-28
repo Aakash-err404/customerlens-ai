@@ -91,5 +91,5 @@ clean.
    left out of the segment profiles, so the reported group averages cover only
    per-row features.
 
-[Unreleased]: https://github.com/OWNER/REPO/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/OWNER/REPO/releases/tag/v1.0.0
+[Unreleased]: https://github.com/Aakash-err404/customerlens-ai/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Aakash-err404/customerlens-ai/releases/tag/v1.0.0
